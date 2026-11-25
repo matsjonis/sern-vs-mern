@@ -3,6 +3,32 @@ import prisma from "../prisma.js";
 
 export const postRouter = Router();
 
+// Diagnostic counters for the MERN update investigation (Experiment 4).
+export let updateErrors: Record<string, number> = {};
+export let updateErrorSamples: string[] = [];
+
+// Update mode for Experiment 4: prisma (default), raw, or raw_include.
+let updateMode = (process.env.UPDATE_MODE || "prisma").toLowerCase();
+const VALID_MODES = ["prisma", "raw", "raw_include"];
+
+// Registered before the id route so it is not matched as an id.
+postRouter.get("/_diag/errors", (_req: Request, res: Response) => {
+  res.json({ mode: updateMode, counts: updateErrors, samples: updateErrorSamples });
+});
+
+// Switch update mode and reset the counters.
+postRouter.post("/_diag/update-mode", (req: Request, res: Response) => {
+  const m = String(req.query.mode || "").toLowerCase();
+  if (!VALID_MODES.includes(m)) {
+    res.status(400).json({ ok: false, error: `mode must be one of ${VALID_MODES.join("|")}` });
+    return;
+  }
+  updateMode = m;
+  updateErrors = {};
+  updateErrorSamples = [];
+  res.json({ ok: true, mode: updateMode });
+});
+
 // GET /api/posts
 postRouter.get("/", async (req: Request, res: Response) => {
   try {
@@ -89,7 +115,7 @@ postRouter.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/posts/batch — for benchmarking batch inserts
+// POST /api/posts/batch
 postRouter.post("/batch", async (req: Request, res: Response) => {
   try {
     const { posts } = req.body;
@@ -100,19 +126,55 @@ postRouter.post("/batch", async (req: Request, res: Response) => {
   }
 });
 
+// Native updateOne. No transaction.
+async function rawUpdateOne(id: string, title: unknown, content: unknown, published: unknown) {
+  const set: Record<string, unknown> = { updatedAt: { $date: new Date().toISOString() } };
+  if (title !== undefined) set.title = title;
+  if (content !== undefined) set.content = content;
+  if (published !== undefined) set.published = published;
+
+  // $runCommandRaw takes a dynamic BSON command; the cast is required.
+  const command: any = {
+    update: "Post",
+    updates: [
+      { q: { _id: { $oid: id } }, u: { $set: set }, multi: false },
+    ],
+  };
+  return prisma.$runCommandRaw(command);
+}
+
 // PUT /api/posts/:id
 postRouter.put("/:id", async (req: Request, res: Response) => {
   try {
     const { title, content, published } = req.body;
-    const post = await prisma.post.update({
-      where: { id: req.params.id as string },
-      data: { title, content, published },
-      include: {
-        author: { select: { id: true, name: true, email: true } },
-      },
-    });
-    res.json({ success: true, data: post });
-  } catch (error) {
+    const id = req.params.id as string;
+
+    if (updateMode === "raw") {
+      const result = await rawUpdateOne(id, title, content, published);
+      res.json({ success: true, data: result });
+    } else if (updateMode === "raw_include") {
+      await rawUpdateOne(id, title, content, published);
+      const post = await prisma.post.findUnique({
+        where: { id },
+        include: { author: { select: { id: true, name: true, email: true } } },
+      });
+      res.json({ success: true, data: post });
+    } else {
+      const post = await prisma.post.update({
+        where: { id },
+        data: { title, content, published },
+        include: {
+          author: { select: { id: true, name: true, email: true } },
+        },
+      });
+      res.json({ success: true, data: post });
+    }
+  } catch (error: any) {
+    const key = error?.code || error?.name || "unknown";
+    updateErrors[key] = (updateErrors[key] || 0) + 1;
+    if (updateErrorSamples.length < 5) {
+      updateErrorSamples.push(String(error?.message || error).slice(0, 300));
+    }
     res.status(400).json({ success: false, error: "Failed to update post" });
   }
 });
@@ -129,7 +191,7 @@ postRouter.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/posts/stats/summary — complex query for benchmarking
+// GET /api/posts/stats/summary
 postRouter.get("/stats/summary", async (_req: Request, res: Response) => {
   try {
     const [totalPosts, publishedPosts, topAuthors] = await Promise.all([

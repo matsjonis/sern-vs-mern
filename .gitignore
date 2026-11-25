@@ -6,3 +6,6 @@ node_modules/
 sern/server/prisma/dev.db
 sern/server/src.zip
 baseline/
+benchmarks/results-OLD-broken-reset/
+
+*.k6log

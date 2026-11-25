@@ -1,13 +1,8 @@
 import http from "k6/http";
 import { check } from "k6";
 
-// One operation type per run, selected with the OP env var:
-//   OP=create | update | read | mixed   (default: mixed = 70/20/10 create/update/read)
-// Load level per run via VUS; steady measurement window via DURATION.
-//
-//   k6 run -e BASE_URL=http://localhost:3001 -e VUS=1000 -e OP=create workload.js
-//
-// One HTTP request per iteration, so throughput == requests/s.
+// k6 workload. OP selects the operation: create, update, read, or mixed (70/20/10, default).
+// Example: k6 run -e BASE_URL=http://localhost:3001 -e VUS=1000 -e OP=create workload.js
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3001";
 const VUS = parseInt(__ENV.VUS || "500", 10);
@@ -17,7 +12,6 @@ const OP = (__ENV.OP || "mixed").toLowerCase();
 export const options = {
   scenarios: {
     load: {
-
       executor: "ramping-vus",
       startVUs: 0,
       stages: [
@@ -35,9 +29,7 @@ export const options = {
 
 const headers = { "Content-Type": "application/json" };
 
-// Pull existing users and posts from the pre-seeded baseline so UPDATE and
-// READ target realistically sized data (the runner restores the ~100k snapshot
-// before each run).
+// Pull existing user and post ids from the seeded baseline for the update and read workloads.
 export function setup() {
   const uRes = http.get(`${BASE_URL}/api/users`, { headers });
   const users = (uRes.json("data") || []).map((u) => u.id).slice(0, 500);

@@ -1,0 +1,6 @@
+config,somaxconn,backlog,fail_pct_mean,reqs_mean,evloop_max_ms
+A_baseline,128,511,63.6,20489,288.1
+B_backlog,128,4096,62.7,20206,313
+C_somaxconn,4096,511,33.7,14548,161.35
+D_both,4096,4096,0.0,10847,134.15
+A_reversal,128,511,12.8,11787,268.96

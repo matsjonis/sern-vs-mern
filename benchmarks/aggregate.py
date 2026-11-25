@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Aggregate k6 --summary-export JSONs into per-operation, per-level tables,
-a CSV, and charts.
+"""Aggregate k6 summary-export JSONs into per-operation, per-level tables plus a CSV.
 
 Input : results/<stack>-<op>-vus<level>-rep<n>.json
-Output: aggregated.csv  and  (if matplotlib is installed) charts/<op>_<metric>.png
-Run   : python3 aggregate.py  [results_dir]
+Output: aggregated.csv (and charts/<op>_<metric>.png if matplotlib is installed)
+Run   : python3 aggregate.py [results_dir]
 """
 import sys, os, re, json, glob, statistics as st
 from collections import defaultdict
@@ -35,7 +34,7 @@ def main():
     if not files:
         sys.exit(f"No JSON summaries found in {RESULTS}/")
 
-    groups = defaultdict(lambda: defaultdict(list))   # (stack, op, vus) -> metric -> [vals]
+    groups = defaultdict(lambda: defaultdict(list))
     for f in files:
         mo = NAME_RE.search(os.path.basename(f))
         if not mo:
@@ -83,7 +82,7 @@ def main():
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except Exception:
-        print("matplotlib not installed — skipping charts (CSV still written). `pip3 install matplotlib` for PNGs.")
+        print("matplotlib not installed, skipping charts (CSV still written). Run pip3 install matplotlib for PNGs.")
         return
 
     os.makedirs("charts", exist_ok=True)
@@ -109,7 +108,7 @@ def main():
                 plt.close(); continue
             plt.xlabel("Concurrent virtual users")
             plt.ylabel(ylabel)
-            plt.title(f"{op} — {ylabel}")
+            plt.title(f"{op}: {ylabel}")
             plt.legend(); plt.grid(True, alpha=0.3); plt.tight_layout()
             plt.savefig(os.path.join("charts", f"{op}_{short}.png"), dpi=130)
             plt.close()

@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-  "seed": "tsx src/seed.ts",
-  "seed:large": "tsx src/seed-large.ts",
-  "test": "vitest"
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "seed": "tsx --env-file=.env src/seed.ts",
+    "seed:large": "tsx --env-file=.env src/seed-large.ts",
+    "test": "vitest"
   },
   "keywords": [],
   "author": "",
